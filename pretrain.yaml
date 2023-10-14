@@ -1,0 +1,154 @@
+description: pretrain-align
+
+target:
+  # service: amlk8s
+  # name: itpeastusv100cl2
+  # name: itpeastusv100cl
+  # name: itpeusp100cl
+  # v100x8-redmond
+  # name: itplabrr1cl1
+  # vc: resrchvc
+  # service: sing
+  # name:  msroctovc
+
+  service: aml
+  name: a100x4
+
+environment:
+  # image: pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime
+  # registry: docker.io # any public registry can be specified here
+  # image: nvidia/pytorch:23.09-py3
+  # image: nvidia/cuda:11.7.1-devel-ubuntu20.04
+  # registry: nvcr.io
+  image: llava:v2
+  username: ischakra
+  registry: ischakra.azurecr.io
+  # registry: ischakra.azurecr.io
+  # # # image: python:3.10-slim
+  # registry: docker.io
+  setup:
+    - pip install --upgrade requests
+    # - apt update && apt upgrade -y
+    # - apt install software-properties-common -y
+    # - add-apt-repository ppa:deadsnakes/ppa
+    # - apt-get update -y && apt-get install -y python3.10 python3.10-distutils curl
+    # - curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+    # - ln -sf /usr/bin/python3.10 /usr/bin/python
+    # - python get-pip.py
+    # - apt-get install -y git
+    # - pip install -e .
+    # - pip install ninja
+    # - pip install flash-attn --no-build-isolation
+
+    # - pip uninstall -y transformer-engine
+    # - pip install git+https://github.com/NVIDIA/TransformerEngine.git@stable
+
+    # - sudo apt-get install git
+    # - pip install einops
+    # - pip install fastapi
+    # - pip install gradio==3.35.2
+    # - pip install markdown2[all]
+    # - pip install numpy
+    # - pip install requests
+    # - pip install sentencepiece
+    # - pip install tokenizers>=0.12.1
+    # - pip install torch==2.0.1
+    # - pip install torchvision==0.15.2
+    # - pip install flash-attn --no-build-isolation
+    # - pip install uvicorn
+    # - pip install wandb
+    # - pip install shortuuid
+    # - pip install httpx==0.24.0
+    # - pip install deepspeed==0.9.5
+    # - pip install peft==0.4.0
+    # - pip install transformers==4.31.0
+    # - pip install accelerate==0.21.0
+    # # - pip install bitsandbytes==0.41.0
+    # - pip install bitsandbytes-cuda117
+    # - pip install scikit-learn==1.2.2
+    # - pip install sentencepiece==0.1.99
+    # - pip install einops==0.6.1
+    # - pip install einops-exts==0.0.4 
+    # - pip install timm==0.6.13
+    # - pip install gradio_client==0.2.9    
+    # - pip install azureml-defaults    
+    # - pip install ninja
+
+code:
+  # local directory of the code. this will be uploaded to the server.
+  # $CONFIG_DIR is expanded to the directory of this config file
+  local_dir: $CONFIG_DIR
+
+# data:
+#   data upload is not required for this example
+
+storage:
+   external:
+    # storage_account_name: ischakraeastus
+    storage_account_name: ischakradatasets
+    container_name: pubdatasets
+    # container_name: objectron
+
+   checkpoints:
+    # storage_account_name: ischakraeastus
+    storage_account_name: ischakradatasets
+    container_name: models
+    # container_name: objectron
+
+jobs:
+- name: pretrain-alignment
+  sku: G4
+  command:
+  # - scripts/v1_5/pretrain_aml.sh
+  - deepspeed $$AMLT_CODE_DIR/llava/train/train_mem.py --deepspeed "$$AMLT_CODE_DIR/scripts/zero2.json" --model_name_or_path /mnt/checkpoints/hf_weights/Llama-2-7b-chat/ --version plain --data_path /mnt/external/llava-data/blip_laion_cc_sbu_558k.json --image_folder /mnt/external/blip_laion_cc_sbu_558k_images --vision_tower openai/clip-vit-large-patch14-336 --mm_projector_type mlp2x_gelu --tune_mm_mlp_adapter True --mm_vision_select_layer -2 --mm_use_im_start_end False --mm_use_im_patch_token False --bf16 True --output_dir /mnt/checkpoints/llava-v1.5-7b-chat-pretrain-G4 --num_train_epochs 1 --per_device_train_batch_size 32 --per_device_eval_batch_size 4 --gradient_accumulation_steps 1 --evaluation_strategy "no" --save_strategy "steps" --save_steps 24000 --save_total_limit 1 --learning_rate 1e-3 --weight_decay 0. --warmup_ratio 0.03 --lr_scheduler_type "cosine" --logging_steps 1 --tf32 True --model_max_length 2048 --gradient_checkpointing True --dataloader_num_workers 4 --lazy_preprocess True --report_to wandb
+
+  submit_args:
+    container_args:
+        shm_size: 64g
+    env:
+      WANDB_API_KEY: "$WANDB_API_KEY"
+
+# - name: scarecrow-G4-amlk8s-bsx4
+#   sku: G4
+#   command:
+#   - bash env.sh  
+#   - python train.py --load_json configs/config_real.json --num_gpus 4
+#   submit_args:
+#     container_args:
+#         shm_size: 64g
+# - name: plant-G8-aml-bsx4
+#   sku: G8
+#   command:
+#   - bash env.sh  
+#   - python train.py --load_json configs/config_real_nikon.json --num_gpus 8
+#   submit_args:
+#     container_args:
+#         shm_size: 64g
+
+# search:
+#   job_template:
+#     name: nerf_dtu_{instance}
+#     sku: G1
+#     command:
+#     - bash env.sh  
+#     - python train.py 
+#       --load_json configs/config_dtu.json 
+#       --num_gpus 1
+#       --lr 5e-4 
+#       --warmup_epochs 1 
+#       --tb_path $$AMLT_OUTPUT_DIR
+#       --root_dir /mnt/external/rs_dtu_4/DTU/{instance}
+#       --save_ckpt_path /mnt/external/rs_dtu_4/DTU/{instance}
+#       --exp_name {instance}
+#   max_trials: 16
+#   parallel_trials: 16
+#   max_duration_hours: 72 # optional, duration in hours of the hyperdrive experiment. Defaults to 336 (ie 2 weeks). Max of 1440 (ie 60 days)
+#   metrics: # optimization objective. Required for bayesian sampling and early_termination, ignored otherwise
+#     - name: val_pnsr
+#       goal: maximize
+#   sampling: grid # how to explore the hyperparameter space: random, grid or bayesian. Default: bayesian
+#   # early_termination: BanditPolicy(slack_factor=0.15, evaluation_interval=1, delay_evaluation=10) # optional. Not supported with bayesian sampling
+#   params:
+#     - name: instance
+#       values: choice('scan15','scan16','scan17','scan18','scan19','scan20','scan21','scan22','scan23','scan24','scan25','scan26','scan27','scan28','scan29','scan30')
+      
